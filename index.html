@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sesión 3A — Consolidación (Límites de dosis)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; line-height:1.35; margin:24px; max-width:1100px}
+    h1{font-size:1.55rem; margin:0 0 8px}
+    h2{margin:0 0 10px}
+    .muted{opacity:.75}
+    .card{border:1px solid #ddd; border-radius:14px; padding:16px; margin:14px 0}
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+    input[type="text"]{padding:7px 9px; border:1px solid #ccc; border-radius:10px; min-width:230px}
+    select{padding:7px 9px; border:1px solid #ccc; border-radius:10px}
+    button{padding:10px 14px; border:1px solid #222; background:#fff; border-radius:12px; cursor:pointer}
+    button:hover{background:#f6f6f6}
+    .ok{outline:3px solid #7ddc7d}
+    .bad{outline:3px solid #ff9a9a}
+    .feedback{margin-top:10px; font-weight:800}
+    .small{font-size:.95rem}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; border:1px solid #ddd; border-radius:8px; padding:2px 6px}
+    .badge{display:inline-block; padding:2px 10px; border:1px solid #ddd; border-radius:999px; font-size:.85rem}
+    .warn{border:1px solid #f1c40f; background:#fff9db; border-radius:14px; padding:12px}
+    #app{display:none}
+    .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+    @media (max-width: 900px){ .grid2{grid-template-columns: 1fr;} }
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;}
+    .tight label{display:inline-block; margin-right:14px}
+  </style>
+</head>
+<body>
+  <h1>Sesión 3A — Actividad de consolidación (no calificable)</h1>
+  <p class="muted small">
+    Tema: <b>Limitación de dosis</b> (trabajadores, estudiantes, público, embarazo/lactancia y exposiciones especialmente autorizadas).
+    <span class="badge">autocorrección</span> <span class="badge">aleatoria</span> <span class="badge">tolerante</span>
+  </p>
+
+  <div id="diagnostic" class="card warn">
+    <h2>Si no puedes escribir o pulsar botones…</h2>
+    <p class="small">
+      Estás en una <b>vista previa</b> (p. ej., Google Drive). <b>Descarga</b> el archivo y ábrelo con <b>Chrome/Edge</b>.
+    </p>
+  </div>
+
+  <div id="app">
+    <div class="card">
+      <div class="grid2">
+        <div class="small">
+          1) Completa y responde.<br>
+          2) Pulsa <b>Corregir ahora</b>.<br>
+          3) Pulsa <b>Reiniciar</b> para generar otra versión.
+        </div>
+        <div class="small">
+          ID de intento (para capturas): <span class="mono" id="attemptId"></span><br>
+          <span class="muted">Cambia al reiniciar.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>1) Completa los huecos <span class="muted small">(12 puntos)</span></h2>
+      <p class="small muted">Se aceptan tildes sí/no, mayúsculas/minúsculas y algunas abreviaturas (mSv, año, etc.).</p>
+      <ol class="small" id="fillBlanks"></ol>
+      <div class="feedback" id="fb1"></div>
+    </div>
+
+    <div class="card">
+      <h2>2) Selecciona el valor del límite correcto <span class="muted small">(8 puntos)</span></h2>
+      <p class="small">Elige el valor que corresponde (según el texto/tabla). Se mezclan preguntas y opciones.</p>
+      <ol class="small" id="pickLimit"></ol>
+      <div class="feedback" id="fb2"></div>
+    </div>
+
+    <div class="card">
+      <h2>3) Verdadero / Falso <span class="muted small">(10 puntos)</span></h2>
+      <div class="small" id="vfBlock"></div>
+      <div class="feedback" id="fb3"></div>
+    </div>
+
+    <div class="card">
+      <h2>4) Mini‑test (A–D) <span class="muted small">(8 puntos)</span></h2>
+      <p class="small">Preguntas estilo examen. Opciones mezcladas.</p>
+      <ol class="small" id="mcqBlock"></ol>
+      <div class="feedback" id="fb4"></div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <button id="checkBtn">Corregir ahora</button>
+        <button id="resetBtn">Reiniciar (nueva versión)</button>
+      </div>
+      <p class="feedback" id="score"></p>
+    </div>
+  </div>
+
+<script>
+  (function boot(){
+    document.getElementById("app").style.display = "block";
+    document.getElementById("diagnostic").style.display = "none";
+  })();
+
+  const normalize = (s) => (s || "")
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g," ")
+    .replace(/^el\s+|^la\s+|^los\s+|^las\s+/,"");
+
+  const shuffle = (arr) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  function makeId(){
+    const now = new Date();
+    const pad = (n)=> String(n).padStart(2,"0");
+    const t = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    const r = Math.random().toString(16).slice(2,8).toUpperCase();
+    return `S3A-${t}-${r}`;
+  }
+  let attemptId = makeId();
+  document.getElementById("attemptId").textContent = attemptId;
+
+  function clearMarks(){
+    document.querySelectorAll(".ok,.bad").forEach(el => el.classList.remove("ok","bad"));
+    ["fb1","fb2","fb3","fb4","score"].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=""; });
+  }
+
+  // ===== BANK (solo del texto/tabla) =====
+  const BANK_BLANKS = [
+    {q:"Los límites se aplican a la suma de dosis por exposiciones <span class='kbd'>_____</span> y dosis comprometidas por incorporación <span class='kbd'>_____</span>.", a:["externas","externa","internas","interna"]},
+    {q:"En el cómputo NO se incluye la dosis debida al fondo radiactivo <span class='kbd'>_____</span>.", a:["natural"]},
+    {q:"En el cómputo NO se incluye la exposición por exámenes y tratamientos <span class='kbd'>_____</span>.", a:["medicos","médicos"]},
+    {q:"En los límites legislados se incluye radiación externa (dosímetros) y la incorporación interna de <span class='kbd'>_____</span>.", a:["radionuclidos","radionúclidos"]},
+    {q:"El límite de dosis efectiva (dosímetro de <span class='kbd'>_____</span>) para trabajadores expuestos es 20 mSv por año oficial.", a:["solapa"]},
+    {q:"Cristalino: límite 100 mSv durante todo período de <span class='kbd'>_____</span> años oficiales consecutivos.", a:["5","cinco"]},
+    {q:"Cristalino: dosis equivalente máxima de <span class='kbd'>_____</span> mSv en cualquier año oficial.", a:["50"]},
+    {q:"Piel: límite de dosis equivalente <span class='kbd'>_____</span> mSv por año (promedio en 1 cm2).", a:["500"]},
+    {q:"Extremidades: límite de dosis equivalente <span class='kbd'>_____</span> mSv por año.", a:["500"]},
+    {q:"Para 16–18 años, el límite de dosis efectiva es <span class='kbd'>_____</span> mSv por año oficial.", a:["6"]},
+    {q:"Para 16–18 años: cristalino <span class='kbd'>_____</span> mSv/año.", a:["15"]},
+    {q:"Para 16–18 años: piel y extremidades <span class='kbd'>_____</span> mSv/año.", a:["150"]},
+    {q:"Público: dosis efectiva <span class='kbd'>_____</span> mSv/año.", a:["1"]},
+    {q:"Público: cristalino <span class='kbd'>_____</span> mSv/año.", a:["15"]},
+    {q:"Público: piel <span class='kbd'>_____</span> mSv/año (promedio 1 cm2).", a:["50"]},
+    {q:"Embarazo: desde la comunicación hasta el final, es improbable que la dosis equivalente al feto exceda <span class='kbd'>_____</span> mSv.", a:["1"]},
+    {q:"Lactancia: no se asignarán trabajos con riesgo significativo de <span class='kbd'>_____</span> radiactiva.", a:["contaminacion","contaminación"]},
+    {q:"Exposiciones especialmente autorizadas: excluidas las <span class='kbd'>_____</span> radiológicas.", a:["emergencias","emergencia"]},
+    {q:"Exposiciones especialmente autorizadas: solo trabajadores categoría <span class='kbd'>_____</span>.", a:["a"]},
+  ];
+
+  const BANK_PICK = [
+    {stem:"Trabajadores expuestos: dosis efectiva (año oficial)", ans:"20 mSv/año", opts:["20 mSv/año","6 mSv/año","1 mSv/año","15 mSv/año"]},
+    {stem:"Trabajadores: cristalino (período 5 años)", ans:"100 mSv/5 años", opts:["100 mSv/5 años","15 mSv/año","50 mSv/año","500 mSv/año"]},
+    {stem:"Trabajadores: cristalino (máx. en cualquier año)", ans:"50 mSv/año", opts:["50 mSv/año","20 mSv/año","15 mSv/año","100 mSv/5 años"]},
+    {stem:"Trabajadores: piel (promedio 1 cm2)", ans:"500 mSv/año", opts:["500 mSv/año","150 mSv/año","50 mSv/año","15 mSv/año"]},
+    {stem:"Trabajadores: extremidades", ans:"500 mSv/año", opts:["500 mSv/año","150 mSv/año","50 mSv/año","6 mSv/año"]},
+    {stem:"Estudiantes 16–18: dosis efectiva", ans:"6 mSv/año", opts:["6 mSv/año","20 mSv/año","1 mSv/año","15 mSv/año"]},
+    {stem:"Estudiantes 16–18: cristalino", ans:"15 mSv/año", opts:["15 mSv/año","50 mSv/año","100 mSv/5 años","500 mSv/año"]},
+    {stem:"Estudiantes 16–18: piel y extremidades", ans:"150 mSv/año", opts:["150 mSv/año","500 mSv/año","50 mSv/año","15 mSv/año"]},
+    {stem:"Público: dosis efectiva", ans:"1 mSv/año", opts:["1 mSv/año","6 mSv/año","20 mSv/año","15 mSv/año"]},
+    {stem:"Público: cristalino", ans:"15 mSv/año", opts:["15 mSv/año","50 mSv/año","100 mSv/5 años","500 mSv/año"]},
+    {stem:"Público: piel (promedio 1 cm2)", ans:"50 mSv/año", opts:["50 mSv/año","150 mSv/año","500 mSv/año","1 mSv/año"]},
+    {stem:"Embarazo: dosis equivalente al feto (hasta el final del embarazo)", ans:"1 mSv", opts:["1 mSv","2 mSv","6 mSv","20 mSv"]},
+  ];
+
+  const BANK_VF = [
+    {t:"En el cómputo de los límites se incluyen dosis externas y dosis comprometidas por incorporación interna.", k:"V"},
+    {t:"En el cómputo se incluye la dosis recibida por exámenes y tratamientos médicos.", k:"F"},
+    {t:"El límite de dosis efectiva para trabajadores expuestos es 20 mSv por año oficial.", k:"V"},
+    {t:"Para cristalino en trabajadores, el límite es 15 mSv por año.", k:"F"},
+    {t:"La piel tiene un límite de 500 mSv por año, promediado sobre 1 cm2.", k:"V"},
+    {t:"Para 16–18 años, el límite de dosis efectiva es 6 mSv por año oficial.", k:"V"},
+    {t:"Para 16–18 años, piel y extremidades es 150 mSv por año.", k:"V"},
+    {t:"El límite de dosis efectiva para el público es 1 mSv por año oficial.", k:"V"},
+    {t:"Las exposiciones especialmente autorizadas incluyen emergencias radiológicas.", k:"F"},
+    {t:"En lactancia, no se asignarán trabajos con riesgo significativo de contaminación radiactiva.", k:"V"},
+    {t:"Las exposiciones especialmente autorizadas son voluntarias y requieren información previa sobre riesgos y precauciones.", k:"V"},
+  ];
+
+  const BANK_MCQ = [
+    {q:"¿Qué NO se incluye en el cómputo de los límites de dosis?", opts:["Dosis por fondo radiactivo natural","Dosis por exposición externa","Dosis comprometida por incorporación interna","Ambas: fondo natural y exposiciones médicas"], c:3},
+    {q:"El límite de dosis efectiva anual para trabajadores expuestos es:", opts:["1 mSv/año","6 mSv/año","20 mSv/año","50 mSv/año"], c:2},
+    {q:"Para el cristalino en trabajadores expuestos:", opts:["100 mSv/5 años con máximo 50 mSv/año","15 mSv/año","500 mSv/año","50 mSv/5 años con máximo 100 mSv/año"], c:0},
+    {q:"Para 16–18 años, piel y extremidades:", opts:["50 mSv/año","150 mSv/año","500 mSv/año","15 mSv/año"], c:1},
+    {q:"Límite de dosis efectiva para el público:", opts:["20 mSv/año","6 mSv/año","1 mSv/año","15 mSv/año"], c:2},
+    {q:"En embarazo, la protección del feto debe ser comparable a:", opts:["La del público","La de categoría A","La de estudiantes 16–18","No se especifica"], c:0},
+    {q:"Exposiciones especialmente autorizadas (excluidas emergencias):", opts:["No requieren autorización","Las autoriza el CSN en situaciones excepcionales","Las decide el trabajador sin informar a nadie","Incluyen embarazadas si lo desean"], c:1},
+    {q:"Participación en exposición especialmente autorizada:", opts:["Puede obligar a cambiar de puesto","No puede implicar cambio sin consentimiento del trabajador","Implica retirada automática de su puesto","Prohíbe volver a su puesto habitual"], c:1},
+    {q:"Para el público, piel:", opts:["500 mSv/año","150 mSv/año","50 mSv/año (promedio 1 cm2)","15 mSv/año"], c:2},
+  ];
+
+  function renderAll(){
+    clearMarks();
+    attemptId = makeId();
+    document.getElementById("attemptId").textContent = attemptId;
+
+    // blanks: 12
+    const fill = document.getElementById("fillBlanks");
+    fill.innerHTML = "";
+    shuffle([...BANK_BLANKS]).slice(0,12).forEach(item=>{
+      const li = document.createElement("li");
+      li.innerHTML = `${item.q}<br><input type="text" data-answers='${JSON.stringify(item.a)}' placeholder="Respuesta">`;
+      fill.appendChild(li);
+    });
+
+    // pick limits: 8
+    const pick = document.getElementById("pickLimit");
+    pick.innerHTML = "";
+    shuffle([...BANK_PICK]).slice(0,8).forEach(item=>{
+      const li = document.createElement("li");
+      const sel = document.createElement("select");
+      sel.dataset.answer = item.ans;
+      const opt0 = document.createElement("option");
+      opt0.value = ""; opt0.textContent = "— Elige —";
+      sel.appendChild(opt0);
+      shuffle([...item.opts]).forEach(t=>{
+        const o = document.createElement("option");
+        o.textContent = t;
+        sel.appendChild(o);
+      });
+      li.innerHTML = `<b>${item.stem}</b><br>`;
+      li.appendChild(sel);
+      pick.appendChild(li);
+    });
+
+    // VF: 10
+    const vf = document.getElementById("vfBlock");
+    vf.innerHTML = "";
+    shuffle([...BANK_VF]).slice(0,10).forEach((q, idx)=>{
+      const p = document.createElement("p");
+      const name = `vf_${idx}_${attemptId}`;
+      p.dataset.key = q.k;
+      p.dataset.name = name;
+      p.innerHTML = `<b>${String.fromCharCode(65+idx)}.</b> ${q.t}<br>
+        <span class="tight">
+          <label><input type="radio" name="${name}" value="V"> Verdadero</label>
+          <label><input type="radio" name="${name}" value="F"> Falso</label>
+        </span>`;
+      vf.appendChild(p);
+    });
+
+    // MCQ: 8
+    const mcq = document.getElementById("mcqBlock");
+    mcq.innerHTML = "";
+    shuffle([...BANK_MCQ]).slice(0,8).forEach((item, idx)=>{
+      const li = document.createElement("li");
+      li.dataset.c = String(item.c);
+      li.innerHTML = `${item.q}<br>`;
+      shuffle(item.opts.map((t,i)=>({t,i}))).forEach(op=>{
+        const label = document.createElement("label");
+        label.style.display = "block";
+        label.innerHTML = `<input type="radio" name="mcq_${idx}_${attemptId}" value="${op.i}"> ${op.t}`;
+        li.appendChild(label);
+      });
+      mcq.appendChild(li);
+    });
+  }
+
+  function check(){
+    clearMarks();
+    let score = 0, max = 0;
+
+    // blanks
+    const inputs = document.querySelectorAll('#fillBlanks input[data-answers]');
+    let ok1 = 0;
+    inputs.forEach(inp=>{
+      max++;
+      const allowed = JSON.parse(inp.dataset.answers).map(a=>normalize(a));
+      const val = normalize(inp.value);
+      if(allowed.includes(val)){ score++; ok1++; inp.classList.add("ok"); }
+      else inp.classList.add("bad");
+    });
+    document.getElementById("fb1").textContent = `Huecos: ${ok1}/${inputs.length}`;
+
+    // pick limits
+    const sels = document.querySelectorAll('#pickLimit select[data-answer]');
+    let ok2 = 0;
+    sels.forEach(sel=>{
+      max++;
+      if(normalize(sel.value) === normalize(sel.dataset.answer)){ score++; ok2++; sel.classList.add("ok"); }
+      else sel.classList.add("bad");
+    });
+    document.getElementById("fb2").textContent = `Selección de límites: ${ok2}/${sels.length}`;
+
+    // VF
+    const ps = document.querySelectorAll("#vfBlock p[data-name]");
+    let ok3 = 0;
+    ps.forEach(p=>{
+      max++;
+      const chosen = document.querySelector(`input[name="${p.dataset.name}"]:checked`);
+      if(chosen && chosen.value === p.dataset.key){ score++; ok3++; p.classList.add("ok"); }
+      else p.classList.add("bad");
+    });
+    document.getElementById("fb3").textContent = `V/F: ${ok3}/${ps.length}`;
+
+    // MCQ
+    const lis = document.querySelectorAll("#mcqBlock li");
+    let ok4 = 0;
+    lis.forEach((li, idx)=>{
+      max++;
+      const chosen = document.querySelector(`input[name="mcq_${idx}_${attemptId}"]:checked`);
+      if(chosen && chosen.value === li.dataset.c){ score++; ok4++; li.classList.add("ok"); }
+      else li.classList.add("bad");
+    });
+    document.getElementById("fb4").textContent = `Mini-test: ${ok4}/${lis.length}`;
+
+    document.getElementById("score").textContent = `Puntuación: ${score} / ${max}. (Actividad de práctica; no se califica)`;
+  }
+
+  document.getElementById("checkBtn").addEventListener("click", check);
+  document.getElementById("resetBtn").addEventListener("click", renderAll);
+
+  renderAll();
+</script>
+</body>
+</html>
